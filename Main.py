@@ -1,7 +1,10 @@
-import requests
 import pandas as pd
+
+import nltk
+nltk.download('wordnet')
+
 from bs4 import BeautifulSoup
-from collections import Counter
+import requests
 
 
 #Function scrapes 'ThePaperBoy' for a list of urls for newspaper front pages.
@@ -88,8 +91,7 @@ def Page_Scrapper(Front_Page_List):
             #Extract rss feeds from newspaper page - equates to around 5 or 6 news articles per a page.
             for newsrss in soup.findAll('div', id="rssfeed"):
                 
-                Temp_Article.append(newsrss.text)
-                #.split()
+                Temp_Article.append(newsrss.text.split())
             #Creates a list of lists of news articles for that page.
             Paper_Article_List.append(Temp_Article)
                 
