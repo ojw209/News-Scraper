@@ -1,10 +1,15 @@
 import pandas as pd
 
 import nltk
+from nltk.corpus import stopwords
 nltk.download('wordnet')
+nltk.download('stopwords')
+import string
 
 from bs4 import BeautifulSoup
 import requests
+
+import matplotlib.pyplot as plt
 
 
 #Function scrapes 'ThePaperBoy' for a list of urls for newspaper front pages.
@@ -115,7 +120,35 @@ def Page_Scrapper(Front_Page_List):
     
     return Main_Store, Url_Error_List
 
-
+def Article_Normalizer(Word_List):
+    
+    #Define Punctuation string to remove. 
+    Punc2Remove = string.punctuation + "“”’"
+    
+    #Define Stop Words
+    stop_words = set(stopwords.words('english'))
+    
+    #NLTK lemmatizer dictionary
+    lemma = nltk.wordnet.WordNetLemmatizer()
+    
+    #Lemmatize words
+    Temp_Word_List = [lemma.lemmatize(t) for t in Word_List]
+    
+    #Convert all Tokents to lower-case
+    Temp_Word_List = [t.lower() for t in Temp_Word_List]
+    
+    #Remove Punctuation from Strings
+    Temp_Word_List = [t.translate(str.maketrans('','',Punc2Remove)) for t in Temp_Word_List]
+    
+    #Remove non-alphabetic words
+    Temp_Word_List = [t for t in Temp_Word_List if t.isalpha()]
+    
+    #Remove Stop Words
+    Temp_Word_List = [t for t in Temp_Word_List if not t in stop_words]
+    
+    return Temp_Word_List
+    
+    
 #Define Starting URL to start scrapping from.
 base_url = "https://www.thepaperboy.com"
 start_postfix_url = "/uk/2020/01/01/front-pages-archive.cfm"
@@ -123,15 +156,35 @@ start_url = base_url + start_postfix_url
 
 #How many months to scan for
 Start_Date = '2020-01-01'
-Months2Scan = 1
+Months2Scan = 6
 
 Daily_Overview_List, Front_Page_List = Address_Scraper(start_url)
 
 Main_Store, Url_Error_List = Page_Scrapper(Front_Page_List)
 
+#Normalize Text [Code needs generalizing]
+Main_Store['Art0'] = Main_Store['Art0'].map(Article_Normalizer)
+Main_Store['Art1'] = Main_Store['Art1'].map(Article_Normalizer)
+Main_Store['Art2'] = Main_Store['Art2'].map(Article_Normalizer)
+Main_Store['Art3'] = Main_Store['Art3'].map(Article_Normalizer)
+Main_Store['Art4'] = Main_Store['Art4'].map(Article_Normalizer)
+
 #NEED TO GENERALISE LINE - [Article Count fixed to 5 ]
 Main_Store['FullArt'] = Main_Store['Art0'] + Main_Store['Art1'] + Main_Store['Art2'] + Main_Store['Art3'] + Main_Store['Art4']
-Main_Store['FullArt'].count('BREXIT')
 
-test = Counter(Main_Store['FullArt'][1].split()).most_common()
+#Convert data-time string to datetime format.
+Main_Store['Date'] = pd.to_datetime(Main_Store['Date'])
+
+
+from collections import Counter
+
+Main_Store['Word_Count'] = Main_Store['FullArt'].map(Counter)
+
+key_word = 'coronavirus'
+
+Plot_Store = pd.DataFrame(pd.to_datetime(Main_Store['Date']))
+
+plt.plot(Main_Store['Trump_Count'])
+
+#test = Counter(Main_Store['FullArt'][1].split()).most_common()
 
