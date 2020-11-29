@@ -4,7 +4,9 @@ import nltk
 from nltk.corpus import stopwords
 nltk.download('wordnet')
 nltk.download('stopwords')
+
 import string
+from collections import Counter
 
 from bs4 import BeautifulSoup
 import requests
@@ -120,8 +122,9 @@ def Page_Scrapper(Front_Page_List):
     
     return Main_Store, Url_Error_List
 
+#Function to tokenize text and carry out cleaning on text.
 def Article_Normalizer(Word_List):
-    
+      
     #Define Punctuation string to remove. 
     Punc2Remove = string.punctuation + "“”’"
     
@@ -148,6 +151,47 @@ def Article_Normalizer(Word_List):
     
     return Temp_Word_List
     
+
+#Function to merge daily and sunday papers together. Results saved under the daily paper name.
+def UK_Paper_Merger(Data_Frame):
+    
+    Data_Frame = Data_Frame.fillna(0) 
+    try:
+        Data_Frame['Daily Express'] = Data_Frame['Daily Express'] + Data_Frame['Daily Express Sunday']
+        del Data_Frame['Daily Express Sunday']
+        
+    except:
+        print('Error: Problem merging Daily and Sunday Express')
+    
+    try:
+        Data_Frame['Daily Mail'] = Data_Frame['Daily Mail'] + Data_Frame['The Mail on Sunday']
+        del Data_Frame['The Mail on Sunday']
+        
+    except:
+        print('Error: Problem merging Daily and Sunday Mail')
+    
+    try:
+        Data_Frame['Daily Star'] = Data_Frame['Daily Star'] + Data_Frame['Daily Star Sunday']
+        del Data_Frame['Daily Star Sunday']
+    
+    except:
+        print('Error: Problem merging Daily and Sunday Star')
+    
+    try:
+        Data_Frame['The Daily Telegraph'] = Data_Frame['The Daily Telegraph'] + Data_Frame['The Sunday Telegraph']
+        del Data_Frame['The Sunday Telegraph']
+        
+    except:
+      print('Error: Problem merging Daily and Sunday Telegraph')
+    
+    try:
+        Data_Frame['The Guardian'] = Data_Frame['The Guardian'] + Data_Frame['The Observer']
+        del Data_Frame['The Observer']
+    
+    except:
+        print('Error: Problem merging Guardian and Observer')
+    
+    return Data_Frame
     
 #Define Starting URL to start scrapping from.
 base_url = "https://www.thepaperboy.com"
@@ -175,16 +219,25 @@ Main_Store['FullArt'] = Main_Store['Art0'] + Main_Store['Art1'] + Main_Store['Ar
 #Convert data-time string to datetime format.
 Main_Store['Date'] = pd.to_datetime(Main_Store['Date'])
 
+Senti_Store = pd.DataFrame(Main_Store[['Date','Paper Name']])
 
-from collections import Counter
+Senti_Store['Word_Count'] = Main_Store['FullArt'].map(Counter)
 
-Main_Store['Word_Count'] = Main_Store['FullArt'].map(Counter)
+KeyWord = 'nhs'
 
-key_word = 'coronavirus'
+Senti_Store['Nhs_Count'] = [Count[KeyWord] for Count in Senti_Store['Word_Count']]
 
-Plot_Store = pd.DataFrame(pd.to_datetime(Main_Store['Date']))
+Senti_Store = Senti_Store.pivot_table(index = 'Date', columns = 'Paper Name', values = 'Nhs_Count', aggfunc = 'first')
 
-plt.plot(Main_Store['Trump_Count'])
+
+Senti_Store = UK_Paper_Merger(Senti_Store)
+Paper_Names = list(Senti_Store.columns.values)
+
+Senti_Store
+
+# https://pandas.pydata.org/pandas-docs/stable/user_guide/reshaping.html
+# https://www.datacamp.com/community/tutorials/wordcloud-python
+
 
 #test = Counter(Main_Store['FullArt'][1].split()).most_common()
 
