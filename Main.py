@@ -11,6 +11,8 @@ from collections import Counter
 from bs4 import BeautifulSoup
 import requests
 
+import csv
+
 import matplotlib.pyplot as plt
 
 
@@ -118,36 +120,44 @@ def Page_Scrapper(Front_Page_List):
     #Merge these 2 dataframes.
     Main_Store =  pd.concat([Paper_Data_Store, Article_Data_Store], axis=1, join='inner')
     
+    with open('Url_Error_List.txt', 'w') as f:
+        for item in Url_Error_List:
+            f.write("%s\n" % item)
     
     
-    return Main_Store, Url_Error_List
+    return Main_Store
 
 #Function to tokenize text and carry out cleaning on text.
 def Article_Normalizer(Word_List):
-      
-    #Define Punctuation string to remove. 
-    Punc2Remove = string.punctuation + "“”’"
     
-    #Define Stop Words
-    stop_words = set(stopwords.words('english'))
-    
-    #NLTK lemmatizer dictionary
-    lemma = nltk.wordnet.WordNetLemmatizer()
-    
-    #Lemmatize words
-    Temp_Word_List = [lemma.lemmatize(t) for t in Word_List]
-    
-    #Convert all Tokents to lower-case
-    Temp_Word_List = [t.lower() for t in Temp_Word_List]
-    
-    #Remove Punctuation from Strings
-    Temp_Word_List = [t.translate(str.maketrans('','',Punc2Remove)) for t in Temp_Word_List]
-    
-    #Remove non-alphabetic words
-    Temp_Word_List = [t for t in Temp_Word_List if t.isalpha()]
-    
-    #Remove Stop Words
-    Temp_Word_List = [t for t in Temp_Word_List if not t in stop_words]
+    try:
+        #Define Punctuation string to remove. 
+        Punc2Remove = string.punctuation + "“”’"
+        
+        #Define Stop Words
+        stop_words = set(stopwords.words('english'))
+        
+        #NLTK lemmatizer dictionary
+        lemma = nltk.wordnet.WordNetLemmatizer()
+        
+        #Lemmatize words
+        Temp_Word_List = [lemma.lemmatize(t) for t in Word_List]
+        
+        #Convert all Tokents to lower-case
+        Temp_Word_List = [t.lower() for t in Temp_Word_List]
+        
+        #Remove Punctuation from Strings
+        Temp_Word_List = [t.translate(str.maketrans('','',Punc2Remove)) for t in Temp_Word_List]
+        
+        #Remove non-alphabetic words
+        Temp_Word_List = [t for t in Temp_Word_List if t.isalpha()]
+        
+        #Remove Stop Words
+        Temp_Word_List = [t for t in Temp_Word_List if not t in stop_words]
+        
+    except:
+        print('Empty Article Found')
+        Temp_Word_List = []
     
     return Temp_Word_List
     
@@ -192,26 +202,63 @@ def UK_Paper_Merger(Data_Frame):
         print('Error: Problem merging Guardian and Observer')
     
     return Data_Frame
+
+def Notepad_List_Extractor(FileName):
+    
+    Word_List = []
+    FileName = FileName + '.txt'
+    with open(FileName, 'r') as fd:
+        reader = csv.reader(fd)
+        for row in reader:
+            Word_List.append(row)
+    
+    return Word_List
+
+
+def Topic_Scanner(Word_List,Data_Frame,Topic):
+    
+    Temp_Store = pd.DataFrame(Data_Frame[['Date','Paper Name']])
+    
+    for KeyWord in Word_List:
+        KeyWord = KeyWord[0]
+        Temp_Store[KeyWord] = [Count[KeyWord] for Count in Data_Frame['Word_Count']]
+    
+    Temp_Store = pd.concat([pd.DataFrame(Data_Frame[['Date','Paper Name']]),Temp_Store.iloc[:, 2:].sum(axis=1)],axis=1)
+    Temp_Store.columns = ['Date', 'Paper Name', Topic]
+    
+    
+    return Temp_Store
     
 #Define Starting URL to start scrapping from.
 base_url = "https://www.thepaperboy.com"
-start_postfix_url = "/uk/2020/01/01/front-pages-archive.cfm"
+start_postfix_url = "/uk/2018/01/01/front-pages-archive.cfm"
 start_url = base_url + start_postfix_url
 
 #How many months to scan for
-Start_Date = '2020-01-01'
-Months2Scan = 6
+Start_Date = '2019-01-01'
+Months2Scan = 32
 
 Daily_Overview_List, Front_Page_List = Address_Scraper(start_url)
 
-Main_Store, Url_Error_List = Page_Scrapper(Front_Page_List)
+Main_Store = Page_Scrapper(Front_Page_List)
 
-#Normalize Text [Code needs generalizing]
-Main_Store['Art0'] = Main_Store['Art0'].map(Article_Normalizer)
-Main_Store['Art1'] = Main_Store['Art1'].map(Article_Normalizer)
-Main_Store['Art2'] = Main_Store['Art2'].map(Article_Normalizer)
-Main_Store['Art3'] = Main_Store['Art3'].map(Article_Normalizer)
-Main_Store['Art4'] = Main_Store['Art4'].map(Article_Normalizer)
+
+#Retrieve list of lists of topic words that will be discovered in articles. 
+Word_File_List = ['NHS_Word_Bank']
+Topic_Words_List = []
+
+for File_Name in Word_File_List:
+    Topic_Words_List.append(Notepad_List_Extractor(File_Name))
+
+#Normalize Text
+for header in ['Art0','Art1','Art2','Art3','Art4']:
+    Main_Store[header] = Main_Store[header].map(Article_Normalizer)
+    
+#Main_Store['Art0'] = Main_Store['Art0'].map(Article_Normalizer)
+#Main_Store['Art1'] = Main_Store['Art1'].map(Article_Normalizer)
+#Main_Store['Art2'] = Main_Store['Art2'].map(Article_Normalizer)
+#Main_Store['Art3'] = Main_Store['Art3'].map(Article_Normalizer)
+#Main_Store['Art4'] = Main_Store['Art4'].map(Article_Normalizer)
 
 #NEED TO GENERALISE LINE - [Article Count fixed to 5 ]
 Main_Store['FullArt'] = Main_Store['Art0'] + Main_Store['Art1'] + Main_Store['Art2'] + Main_Store['Art3'] + Main_Store['Art4']
@@ -219,25 +266,41 @@ Main_Store['FullArt'] = Main_Store['Art0'] + Main_Store['Art1'] + Main_Store['Ar
 #Convert data-time string to datetime format.
 Main_Store['Date'] = pd.to_datetime(Main_Store['Date'])
 
-Senti_Store = pd.DataFrame(Main_Store[['Date','Paper Name']])
 
-Senti_Store['Word_Count'] = Main_Store['FullArt'].map(Counter)
-
-KeyWord = 'nhs'
-
-Senti_Store['Nhs_Count'] = [Count[KeyWord] for Count in Senti_Store['Word_Count']]
-
-Senti_Store = Senti_Store.pivot_table(index = 'Date', columns = 'Paper Name', values = 'Nhs_Count', aggfunc = 'first')
+#Create a dataframe with the Collections word counter function. (Stores a list
+# of words with there orrurences counted)
+Counter_Store = pd.DataFrame(Main_Store[['Date','Paper Name']])
+Counter_Store['Word_Count'] = Main_Store['FullArt'].map(Counter)
 
 
-Senti_Store = UK_Paper_Merger(Senti_Store)
-Paper_Names = list(Senti_Store.columns.values)
+#Temporary Topic Word
+TopicWord = 'Health'
+Word_List = Topic_Words_List[0]
 
-Senti_Store
+KHealth_Store = Topic_Scanner(Word_List,Counter_Store, TopicWord)
 
+KHealth_Store = KHealth_Store.pivot_table(index = 'Date', columns = 'Paper Name', values = TopicWord, aggfunc = 'first')
+
+KHealth_Store  = UK_Paper_Merger(KHealth_Store)
+
+KHealth_Store.to_csv('Health_Count_Paper.csv', sep=',')
+
+
+
+Paper_Names = list(Counter_Store.columns.values)
+
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+analyser = SentimentIntensityAnalyzer()
+
+
+def sentiment_analyzer_scores(sentence):
+    score = analyser.polarity_scores(sentence)
+    print("{:-<40} {}".format(sentence, str(score)))
+    
+    
 # https://pandas.pydata.org/pandas-docs/stable/user_guide/reshaping.html
 # https://www.datacamp.com/community/tutorials/wordcloud-python
 
 
-#test = Counter(Main_Store['FullArt'][1].split()).most_common()
+
 

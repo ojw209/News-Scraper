@@ -1,0 +1,7 @@
+nhs
+health
+hospital
+care
+nurse
+doctor
+ward
